@@ -274,7 +274,7 @@ int main(int argc, char** argv)
 			
 			std::string baseUrl;
 			std::string output(outputFile);
-			if (devList.size() > 1)
+			if (devList.size() > 0)
 			{
 				baseUrl = getDeviceName(videoDev);
 				baseUrl.append("_");
