@@ -13,6 +13,8 @@
 
 #ifdef HAVE_ALSA
 
+#include <sys/time.h>
+
 #include "ALSACapture.h"
 
 static const snd_pcm_format_t formats[] = {
@@ -72,6 +74,12 @@ ALSACapture* ALSACapture::createNew(const ALSACaptureParameters & params)
 
 ALSACapture::~ALSACapture()
 {
+	if(m_opus) opus_encoder_destroy(m_opus);
+	if(m_pcm_buffer)
+	{
+		delete[] m_pcm_buffer;
+		m_pcm_buffer = NULL;
+	}
 	this->close();
 }
 
@@ -84,7 +92,7 @@ void ALSACapture::close()
 	}
 }
 	
-ALSACapture::ALSACapture(const ALSACaptureParameters & params) : m_pcm(NULL), m_bufferSize(0), m_periodSize(0), m_params(params)
+ALSACapture::ALSACapture(const ALSACaptureParameters & params) : m_pcm(NULL), m_bufferSize(0), m_periodSize(0), m_params(params), m_pcm_buffer(NULL)
 {
 	LOG(NOTICE) << "Open ALSA device: \"" << params.m_devName << "\"";
 	
@@ -121,10 +129,25 @@ ALSACapture::ALSACapture(const ALSACaptureParameters & params) : m_pcm(NULL), m_
 		this->close();
 	}
 	
+	m_opus = NULL;
 	if(!err) {
+		if (m_params.m_format == std::string("OPUS")) {
+			// opus initialize
+			m_bufferSize = 4096;
+			m_periodSize = m_params.m_sampleRate * 20 / 1000;
+			m_pcm_buffer = new char[m_periodSize * snd_pcm_format_physical_width(m_fmt) / 8];
+			m_opus = opus_encoder_create(m_params.m_sampleRate, m_params.m_channels, OPUS_APPLICATION_VOIP, &err);
+			if((m_opus == NULL) || (err != 0)) {
+				LOG(ERROR) << "opus_encoder_create : " << opus_strerror (err);
+				this->close();
+			} else {
+				opus_encoder_ctl(m_opus, OPUS_SET_LSB_DEPTH(snd_pcm_format_physical_width(m_fmt)));
+			}
+		} else {
 			// PCM initialize
 			m_periodSize = m_params.m_sampleRate * 120 / 1000;
 			m_bufferSize = m_periodSize * snd_pcm_format_physical_width(m_fmt) / 8 * m_params.m_channels;
+		}
 	}
 
 	if(!err) {
@@ -179,35 +202,42 @@ int ALSACapture::configureFormat(snd_pcm_hw_params_t *hw_params) {
 
 size_t ALSACapture::read(char* buffer, size_t bufferSize)
 {
+	static timeval lastTime;
 	size_t size = 0;
 	int fmt_phys_width_bytes = 0;
 	if (m_pcm != 0)
 	{
 		fmt_phys_width_bytes = snd_pcm_format_physical_width(m_fmt) / 8;
+		timeval curTime;
+		gettimeofday(&curTime, NULL);
+		timeval diff;
+		timersub(&curTime, &lastTime, &diff);
+		lastTime = curTime;
 
-		snd_pcm_sframes_t ret = snd_pcm_readi (m_pcm, buffer, m_periodSize*fmt_phys_width_bytes);
-		LOG(DEBUG) << "ALSA buffer in_size:" << m_periodSize*fmt_phys_width_bytes << " read_size:" << ret;
-		if (ret > 0) {
-			size = ret;				
-			
-			// swap if capture in not in network order
-			if (!snd_pcm_format_big_endian(m_fmt)) {
-				for(unsigned int i = 0; i < size; i++){
-					char * ptr = &buffer[i * fmt_phys_width_bytes * m_params.m_channels];
-					
-					for(unsigned int j = 0; j < m_params.m_channels; j++){
-						ptr += j * fmt_phys_width_bytes;
-						for (int k = 0; k < fmt_phys_width_bytes/2; k++) {
-							char byte = ptr[k];
-							ptr[k] = ptr[fmt_phys_width_bytes - 1 - k];
-							ptr[fmt_phys_width_bytes - 1 - k] = byte; 
-						}
+		if(m_params.m_format == "OPUS") {
+			snd_pcm_sframes_t frameSize = snd_pcm_readi(m_pcm, m_pcm_buffer, m_periodSize);
+			LOG(DEBUG) << "pcm_readi periodSize:" << m_periodSize * fmt_phys_width_bytes << " frameSize:" << frameSize * fmt_phys_width_bytes;
+			if (frameSize > 0) {
+				size = opus_encode(m_opus, (opus_int16 *)m_pcm_buffer, frameSize, (unsigned char *)buffer, bufferSize);
+				LOG(DEBUG) << "opus_encode pcm frameSize: " << frameSize * fmt_phys_width_bytes << "bytes opus outSize: " << size << "bytes interval: " <<  (diff.tv_sec*1000+diff.tv_usec/1000) << "ms\n";
+			}
+		} else {
+			snd_pcm_sframes_t frameSize = snd_pcm_readi(m_pcm, buffer, m_periodSize);
+			LOG(DEBUG) << "pcm_readi periodSize:" << m_periodSize * fmt_phys_width_bytes << " frameSize:" << frameSize * fmt_phys_width_bytes;
+			if (frameSize > 0) {
+				// swap if capture in not in network order
+				if (!snd_pcm_format_big_endian(m_fmt)) {
+					for(unsigned int i = 0; i < frameSize * m_params.m_channels; i++) {
+						unsigned short *ptr = (unsigned short *)buffer + i;
+						*ptr = (*ptr >> 8) | (*ptr << 8);
 					}
 				}
+				size = frameSize * m_params.m_channels * fmt_phys_width_bytes;
+				LOG(DEBUG) << "pcm frameSize: " << size << "bytes interval: " <<  (diff.tv_sec*1000+diff.tv_usec/1000) << "ms";
 			}
 		}
 	}
-	return size * m_params.m_channels * fmt_phys_width_bytes;
+	return size;
 }
 		
 int ALSACapture::getFd()

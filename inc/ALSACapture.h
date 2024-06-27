@@ -16,6 +16,7 @@
 #include <list>
 
 #include <alsa/asoundlib.h>
+#include <opus/opus.h>
 #include "logger.h"
 
 #include "DeviceInterface.h"
@@ -64,6 +65,7 @@ class ALSACapture  : public DeviceInterface
 		ALSACaptureParameters m_params;
 		snd_pcm_format_t      m_fmt;
 		std::list<int>        m_fmtList;
+		OpusEncoder*          m_opus;
 		char*                 m_pcm_buffer;
 };
 

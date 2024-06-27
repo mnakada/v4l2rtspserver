@@ -103,6 +103,10 @@ RTPSink*  BaseServerMediaSubsession::createSink(UsageEnvironment& env, Groupsock
 		getline(is, channels);	
 		videoSink = SimpleRTPSink::createNew(env, rtpGroupsock, rtpPayloadTypeIfDynamic, atoi(sampleRate.c_str()), "audio", "L16", atoi(channels.c_str()), True, False);
 	}
+	else if (format.find("audio/OPUS") == 0)
+	{
+		videoSink = SimpleRTPSink::createNew(env, rtpGroupsock, rtpPayloadTypeIfDynamic, 48000, "audio", "OPUS", 2, False, False);
+	}
 	else if (format.find("audio/MPEG") == 0)
 	{
 		videoSink = MPEG1or2AudioRTPSink::createNew(env, rtpGroupsock);
