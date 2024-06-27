@@ -19,7 +19,7 @@ v4l2rtspserver
 This is an streamer feed from :
  - an Video4Linux device that support H264, HEVC, JPEG, VP8 or VP9 capture.
  - an ALSA device that support PCM S16_BE, S16_LE, S32_BE or S32_LE
- 
+
 The RTSP server support :
 - RTP/UDP unicast
 - RTP/UDP multicast
@@ -62,7 +62,7 @@ Usage
 		 -t secs  : RTCP expiration timeout (default 65)
 		 -S[secs] : HTTP segment duration (enable HLS & MPEG-DASH)
 		 -x <sslkeycert>  : enable RTSPS & SRTP
- 
+	 
 		 V4L2 options :
 		 -r       : V4L2 capture using read interface (default use memory mapped buffers)
 		 -w       : V4L2 capture using write interface (default use memory mapped buffers)
@@ -80,16 +80,18 @@ Usage
 		 -C channels: ALSA capture channels (default 2)
 		 -a fmt     : ALSA capture audio format (default S16_LE)
 		 
-		 device   : V4L2 capture device and/or ALSA device (default /dev/video0)
+		 device   : [V4L2 device][,ALSA device[@output format]]
+		          : V4L2 capture device and/or ALSA device (default /dev/video0)
+		          : output format : [S16_BE|AAC|OPUS] (default S16_BE)
 
 When audio support is not present, ALSA options are not printed running with `-h` argument.
 
 Authentification is enable when almost one user is defined. You can configure credentials :
  * using plain text password: 
- 
+
        -U foo:bar -U admin:admin
  * using md5 password: 
- 
+
        -R myrealm -U foo:$(echo -n foo:myrealm:bar | md5sum | cut -d- -f1) -U admin:$(echo -n admin:myrealm:admin | md5sum | cut -d- -f1)
 
 It is possible to compose the RTSP session is different ways :
@@ -147,11 +149,11 @@ When v4l2rtspserver is started with '-S' arguments it also give access to stream
 These streams could be played :
 
 	* for MPEG-DASH with :   
-           MP4Client http://..../unicast.mpd   
+	       MP4Client http://..../unicast.mpd   
 	   
 	* for HLS with :  
-           vlc http://..../unicast.m3u8  
-           gstreamer-launch-1.0 playbin uri=http://.../unicast.m3u8  
+	       vlc http://..../unicast.m3u8  
+	       gstreamer-launch-1.0 playbin uri=http://.../unicast.m3u8  
 
 It is now possible to play HLS url directly from browser :
 
