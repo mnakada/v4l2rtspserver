@@ -14,3 +14,8 @@ install_manifest.txt
 #live
 live/
 live555-latest.tar.gz
+#XCode
+*.xcodeproj/project.xcworkspace/
+*.xcodeproj/xcuserdata/
+*.xcodeproj/xcshareddata/
+
