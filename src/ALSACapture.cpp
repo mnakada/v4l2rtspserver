@@ -75,6 +75,7 @@ ALSACapture* ALSACapture::createNew(const ALSACaptureParameters & params)
 ALSACapture::~ALSACapture()
 {
 	if(m_opus) opus_encoder_destroy(m_opus);
+	if(m_aac) aacEncClose(&m_aac);
 	if(m_pcm_buffer)
 	{
 		delete[] m_pcm_buffer;
@@ -130,6 +131,7 @@ ALSACapture::ALSACapture(const ALSACaptureParameters & params) : m_pcm(NULL), m_
 	}
 	
 	m_opus = NULL;
+	m_aac = NULL;
 	if(!err) {
 		if (m_params.m_format == std::string("OPUS")) {
 			// opus initialize
@@ -142,6 +144,23 @@ ALSACapture::ALSACapture(const ALSACaptureParameters & params) : m_pcm(NULL), m_
 				this->close();
 			} else {
 				opus_encoder_ctl(m_opus, OPUS_SET_LSB_DEPTH(snd_pcm_format_physical_width(m_fmt)));
+			}
+		} else if(m_params.m_format == std::string("AAC")) {
+			// AAC initialzie
+			err = aacEncOpen(&m_aac, 0, m_params.m_channels);
+			if(!err) err = aacEncoder_SetParam(m_aac, AACENC_AOT, 2);
+			if(!err) err = aacEncoder_SetParam(m_aac, AACENC_BITRATE, 128000);
+			if(!err) err = aacEncoder_SetParam(m_aac, AACENC_SAMPLERATE, m_params.m_sampleRate);
+			if(!err) err = aacEncoder_SetParam(m_aac, AACENC_CHANNELMODE, (m_params.m_channels == 1) ? MODE_1 : MODE_2);
+			if(!err) err = aacEncEncode(m_aac, NULL, NULL, NULL, NULL);
+			AACENC_InfoStruct info = {0};
+			if(!err) err = aacEncInfo(m_aac, &info);
+			m_periodSize = info.frameLength;
+			m_bufferSize = m_periodSize * snd_pcm_format_physical_width(m_fmt) / 8 * m_params.m_channels;
+			m_pcm_buffer = new char[m_bufferSize];
+			if((m_aac == NULL) || (err != 0)) {
+				LOG(ERROR) << "aacEncOpen : " << (err);
+				this->close();
 			}
 		} else {
 			// PCM initialize
@@ -220,6 +239,43 @@ size_t ALSACapture::read(char* buffer, size_t bufferSize)
 			if (frameSize > 0) {
 				size = opus_encode(m_opus, (opus_int16 *)m_pcm_buffer, frameSize, (unsigned char *)buffer, bufferSize);
 				LOG(DEBUG) << "opus_encode pcm frameSize: " << frameSize * fmt_phys_width_bytes << "bytes opus outSize: " << size << "bytes interval: " <<  (diff.tv_sec*1000+diff.tv_usec/1000) << "ms\n";
+			}
+		} else if(m_params.m_format == "AAC") {
+			snd_pcm_sframes_t frameSize = snd_pcm_readi(m_pcm, m_pcm_buffer, m_periodSize);
+			LOG(DEBUG) << "pcm_readi periodSize:" << m_periodSize * fmt_phys_width_bytes << " frameSize:" << frameSize * fmt_phys_width_bytes;
+			if (frameSize > 0) {
+				AACENC_BufDesc iDesc = {0};
+				iDesc.numBufs = 1;
+				iDesc.bufs = (void **)&m_pcm_buffer;
+				int iidentify = IN_AUDIO_DATA;
+				iDesc.bufferIdentifiers = &iidentify;
+				int ibufSize = frameSize * fmt_phys_width_bytes;
+				iDesc.bufSizes = &ibufSize;
+				int ibufElementSize = 2; // 16bit
+				iDesc.bufElSizes = &ibufElementSize;
+
+				AACENC_BufDesc oDesc = {0};
+				oDesc.numBufs = 1;
+				oDesc.bufs = (void **)&buffer;
+				int oidentify = OUT_BITSTREAM_DATA;
+				oDesc.bufferIdentifiers = &oidentify;
+				int obufSize = bufferSize;
+				oDesc.bufSizes = &obufSize;
+				int obufElementSize = 2; // 16bit
+				oDesc.bufElSizes = &obufElementSize;
+
+				AACENC_InArgs iArgs = {0};
+				iArgs.numInSamples =  frameSize;
+
+				AACENC_OutArgs oArgs = {0};
+				int err = aacEncEncode(m_aac, &iDesc, &oDesc, &iArgs, &oArgs);
+				if(err) {
+					LOG(ERROR) << "aacEncEncode : " << err;
+					size = -1;
+				} else {
+					size = oArgs.numOutBytes;
+				}
+				LOG(DEBUG) << "aacEncEncode pcm frameSize: " << frameSize * fmt_phys_width_bytes << "bytes aac outSize: " << size << "bytes interval: " <<  (diff.tv_sec*1000+diff.tv_usec/1000) << "ms\n";
 			}
 		} else {
 			snd_pcm_sframes_t frameSize = snd_pcm_readi(m_pcm, buffer, m_periodSize);

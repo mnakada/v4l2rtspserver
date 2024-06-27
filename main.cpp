@@ -211,7 +211,7 @@ int main(int argc, char** argv)
 				std::cout << "\t Devices :"                                                                                                    << std::endl;
 				std::cout << "\t [V4L2 device][,ALSA device[@output format]]" << std::endl;
 				std::cout << "\t                 : V4L2 capture device or/and ALSA capture device (default "<< dev_name << ")"     << std::endl;
-				std::cout << "\t                 : output format : [S16_BE|OPUS] (default S16_BE)" << std::endl;
+				std::cout << "\t                 : output format : [S16_BE|AAC|OPUS] (default S16_BE)" << std::endl;
 				exit(0);
 			}
 		}

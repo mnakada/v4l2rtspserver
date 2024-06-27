@@ -107,6 +107,31 @@ RTPSink*  BaseServerMediaSubsession::createSink(UsageEnvironment& env, Groupsock
 	{
 		videoSink = SimpleRTPSink::createNew(env, rtpGroupsock, rtpPayloadTypeIfDynamic, 48000, "audio", "OPUS", 2, False, False);
 	}
+	else if (format.find("audio/AAC") == 0)
+	{
+		std::istringstream is(format);
+		std::string dummy;
+		getline(is, dummy, '/');	
+		getline(is, dummy, '/');	
+		std::string sampleRate("44100");
+		getline(is, sampleRate, '/');	
+		std::string channels("2");
+		getline(is, channels);
+
+		const int aot = 2;
+		const int kSampleRates[] = {96000, 88200, 64000, 48000, 44100,
+					    32000, 24000, 22050, 16000, 12000,
+					    11025, 8000,  7350, 0};
+		unsigned int fs;
+		for(fs = 0; fs < sizeof(kSampleRates) / sizeof(int); fs++) {
+			if(atoi(sampleRate.c_str()) == kSampleRates[fs]) {
+				std::stringstream conf;
+				conf << std::hex << std::uppercase << std::setfill('0') << std::setw(4) << ((aot << 11) | (fs << 7) | (atoi(channels.c_str()) << 3));
+				videoSink = MPEG4GenericRTPSink::createNew(env, rtpGroupsock, rtpPayloadTypeIfDynamic, atoi(sampleRate.c_str()), "audio", "AAC-hbr", conf.str().c_str(), atoi(channels.c_str()));
+				break;
+			}
+		}
+	}
 	else if (format.find("audio/MPEG") == 0)
 	{
 		videoSink = MPEG1or2AudioRTPSink::createNew(env, rtpGroupsock);
