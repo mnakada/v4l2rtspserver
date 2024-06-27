@@ -22,8 +22,8 @@
 
 struct ALSACaptureParameters 
 {
-	ALSACaptureParameters(const char* devname, const std::list<snd_pcm_format_t> & formatList, unsigned int sampleRate, unsigned int channels, int verbose) : 
-		m_devName(devname), m_formatList(formatList), m_sampleRate(sampleRate), m_channels(channels), m_verbose(verbose) {
+	ALSACaptureParameters(const char* devname, const std::list<snd_pcm_format_t> & formatList, unsigned int sampleRate, unsigned int channels, int verbose, std::string format) :
+		m_devName(devname), m_formatList(formatList), m_sampleRate(sampleRate), m_channels(channels), m_verbose(verbose), m_format(format) {
 			
 	}
 		
@@ -32,6 +32,7 @@ struct ALSACaptureParameters
 	unsigned int     m_sampleRate;
 	unsigned int     m_channels;
 	int              m_verbose;
+	std::string      m_format;
 };
 
 class ALSACapture  : public DeviceInterface
@@ -52,7 +53,7 @@ class ALSACapture  : public DeviceInterface
 		
 		virtual int            getSampleRate()      { return m_params.m_sampleRate; }
 		virtual int            getChannels  ()      { return m_params.m_channels;   }
-		virtual int            getAudioFormat ()    { return m_fmt;                 }
+		virtual std::string    getAudioFormat()     { return m_params.m_format;     }
 		virtual std::list<int> getAudioFormatList() { return m_fmtList;             }
 
 		
@@ -63,6 +64,7 @@ class ALSACapture  : public DeviceInterface
 		ALSACaptureParameters m_params;
 		snd_pcm_format_t      m_fmt;
 		std::list<int>        m_fmtList;
+		char*                 m_pcm_buffer;
 };
 
 

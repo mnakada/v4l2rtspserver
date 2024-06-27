@@ -76,37 +76,11 @@ class BaseServerMediaSubsession
             return rtpFormat;
         }
 
-        static std::string getAudioRtpFormat(int format, int sampleRate, int channels)
+        static std::string getAudioRtpFormat(std::string format, int sampleRate, int channels)
         {
             std::ostringstream os;
 #ifdef HAVE_ALSA            
-            os << "audio/";
-            switch (format) {                
-                case SND_PCM_FORMAT_A_LAW:
-                    os << "PCMA";
-                    break;
-                case SND_PCM_FORMAT_MU_LAW:
-                    os << "PCMU";
-                    break;
-                case SND_PCM_FORMAT_S8:
-                    os << "L8";
-                    break;
-                case SND_PCM_FORMAT_S24_BE:
-                case SND_PCM_FORMAT_S24_LE:
-                    os << "L24";
-                    break;
-                case SND_PCM_FORMAT_S32_BE:
-                case SND_PCM_FORMAT_S32_LE:
-                    os << "L32";
-                    break;
-                case SND_PCM_FORMAT_MPEG:
-                    os << "MPEG";
-                    break;
-                default:
-                    os << "L16";
-                    break;
-            }
-            os << "/" << sampleRate << "/" << channels;
+            os << "audio/" << format << "/" << sampleRate << "/" << channels;
 #endif            
             return os.str();
         }        

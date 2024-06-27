@@ -12,6 +12,7 @@
 #include <dirent.h>
 
 #include <sstream>
+#include <algorithm>
 
 #include "logger.h"
 #include "V4l2Capture.h"
@@ -203,13 +204,23 @@ StreamReplicator* V4l2RTSPServer::CreateAudioReplicator(
 	StreamReplicator* audioReplicator = NULL;
 	if (!audioDev.empty())
 	{
+		std::istringstream is(audioDev);
+		std::string device;
+		getline(is, device, '@');
+		std::string format;
+		getline(is, format);
+		std::transform(format.begin(), format.end(), format.begin(), ::toupper);
+		if(format == std::string("S16_BE")) {
+			format = "L16";
+    }
+
 		// find the ALSA device associated with the V4L2 device
-		std::string audioDevice = getV4l2Alsa(audioDev);
+		std::string audioDevice = getV4l2Alsa(device);
 	
 		// Init audio capture
-		LOG(NOTICE) << "Create ALSA Source..." << audioDevice;
-		
-		ALSACaptureParameters param(audioDevice.c_str(), audioFmtList, audioFreq, audioNbChannels, verbose);
+		LOG(NOTICE) << "Create ALSA Source..." << audioDevice << " output format : " << format;
+
+		ALSACaptureParameters param(audioDevice.c_str(), audioFmtList, audioFreq, audioNbChannels, verbose, format);
 		ALSACapture* audioCapture = ALSACapture::createNew(param);
 		if (audioCapture) 
 		{

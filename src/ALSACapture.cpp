@@ -120,30 +120,36 @@ ALSACapture::ALSACapture(const ALSACaptureParameters & params) : m_pcm(NULL), m_
 		LOG(ERROR) << "cannot set channel count device: " << m_params.m_devName << " error:" <<  snd_strerror (err);
 		this->close();
 	}
-	else if ((err = snd_pcm_hw_params (m_pcm, hw_params)) < 0) {
-		LOG(ERROR) << "cannot set parameters device: " << m_params.m_devName << " error:" <<  snd_strerror (err);
-		this->close();
+	
+	if(!err) {
+			// PCM initialize
+			m_periodSize = m_params.m_sampleRate * 120 / 1000;
+			m_bufferSize = m_periodSize * snd_pcm_format_physical_width(m_fmt) / 8 * m_params.m_channels;
 	}
-	
-	// get buffer size
-	else if ((err = snd_pcm_get_params(m_pcm, &m_bufferSize, &m_periodSize)) < 0) {
-		LOG(ERROR) << "cannot get parameters device: " << m_params.m_devName << " error:" <<  snd_strerror (err);
-		this->close();
+
+	if(!err) {
+		if ((err = snd_pcm_hw_params_set_period_size(m_pcm, hw_params, m_periodSize, 0)) < 0) {
+			LOG(ERROR) << "cannot set sample rate device: " << m_params.m_devName << " periodSize: " << m_periodSize << " error:" <<  snd_strerror (err);
+			this->close();
+		}
+		else if ((err = snd_pcm_hw_params (m_pcm, hw_params)) < 0) {
+			LOG(ERROR) << "cannot set parameters device: " << m_params.m_devName << " error:" <<  snd_strerror (err);
+			this->close();
+		}
+		// start capture
+		else if ((err = snd_pcm_prepare (m_pcm)) < 0) {
+			LOG(ERROR) << "cannot prepare audio interface for use device: " << m_params.m_devName << " error:" <<  snd_strerror (err);
+			this->close();
+		}
+		else if ((err = snd_pcm_start (m_pcm)) < 0) {
+			LOG(ERROR) << "cannot start audio interface for use device: " << m_params.m_devName << " error:" <<  snd_strerror (err);
+			this->close();
+		}
 	}
-	
-	// start capture
-	else if ((err = snd_pcm_prepare (m_pcm)) < 0) {
-		LOG(ERROR) << "cannot prepare audio interface for use device: " << m_params.m_devName << " error:" <<  snd_strerror (err);
-		this->close();
-	}			
-	else if ((err = snd_pcm_start (m_pcm)) < 0) {
-		LOG(ERROR) << "cannot start audio interface for use device: " << m_params.m_devName << " error:" <<  snd_strerror (err);
-		this->close();
-	}			
-	
+
 	if (!err) {
 		// get supported format
-		for (int i = 0; i < sizeof(formats)/sizeof(formats[0]); ++i) {
+		for (int i = 0; i < (int)(sizeof(formats)/sizeof(formats[0])); ++i) {
 			if (!snd_pcm_hw_params_test_format(m_pcm, hw_params, formats[i])) {
 				m_fmtList.push_back(formats[i]);
 			}
